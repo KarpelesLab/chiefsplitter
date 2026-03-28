@@ -95,6 +95,9 @@ pub enum SplitterError {
 
     #[error("Swap did not increase destination token balance")]
     SwapDestNotIncreased,
+
+    #[error("Name exceeds maximum length (64 bytes)")]
+    NameTooLong,
 }
 
 impl From<SplitterError> for ProgramError {

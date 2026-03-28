@@ -12,7 +12,7 @@ use solana_program::{
 
 use crate::{
     error::SplitterError,
-    state::{Splitter, SPLITTER_SEED},
+    state::{Splitter, MAX_NAME_LEN, SPLITTER_SEED},
 };
 
 /// Create a new fee splitter
@@ -25,6 +25,7 @@ pub fn process_create_splitter(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     nonce: u64,
+    name: &str,
 ) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
@@ -52,6 +53,11 @@ pub fn process_create_splitter(
         return Err(SplitterError::AlreadyInitialized.into());
     }
 
+    // Validate name length
+    if name.len() > MAX_NAME_LEN {
+        return Err(SplitterError::NameTooLong.into());
+    }
+
     let rent = Rent::get()?;
     let splitter_rent = rent.minimum_balance(Splitter::LEN);
 
@@ -75,7 +81,7 @@ pub fn process_create_splitter(
     )?;
 
     // Initialize splitter state
-    let splitter = Splitter::new(*creator_info.key, nonce, bump);
+    let splitter = Splitter::new(*creator_info.key, nonce, bump, name.as_bytes());
 
     let mut data = splitter_info.try_borrow_mut_data()?;
     splitter.serialize(&mut &mut data[..])?;

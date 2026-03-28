@@ -28,11 +28,15 @@ const SPLITTER_SEED = Buffer.from("splitter");
 
 // ---- Borsh helpers ----
 
-function encodeCreateSplitter(nonce: bigint): Buffer {
-  // variant 0 + u64 nonce
-  const buf = Buffer.alloc(1 + 8);
-  buf.writeUInt8(0, 0);
-  buf.writeBigUInt64LE(nonce, 1);
+function encodeCreateSplitter(nonce: bigint, name: string = ""): Buffer {
+  // variant 0 + u64 nonce + string (u32 len + utf8 bytes)
+  const nameBytes = Buffer.from(name, "utf-8");
+  const buf = Buffer.alloc(1 + 8 + 4 + nameBytes.length);
+  let offset = 0;
+  buf.writeUInt8(0, offset); offset += 1;
+  buf.writeBigUInt64LE(nonce, offset); offset += 8;
+  buf.writeUInt32LE(nameBytes.length, offset); offset += 4;
+  nameBytes.copy(buf, offset);
   return buf;
 }
 
@@ -84,16 +88,26 @@ function encodeLockRecipient(minShare: number): Buffer {
   return buf;
 }
 
+function encodeSetSplitterName(name: string): Buffer {
+  // variant 7 + string (u32 len + utf8 bytes)
+  const nameBytes = Buffer.from(name, "utf-8");
+  const buf = Buffer.alloc(1 + 4 + nameBytes.length);
+  buf.writeUInt8(7, 0);
+  buf.writeUInt32LE(nameBytes.length, 1);
+  nameBytes.copy(buf, 5);
+  return buf;
+}
+
 function encodeSetSellConfig(
   mints: PublicKey[],
   approvedPrograms: PublicKey[]
 ): Buffer {
-  // variant 7 + vec<Pubkey> whitelisted_mints + vec<Pubkey> approved_swap_programs
+  // variant 8 + vec<Pubkey> whitelisted_mints + vec<Pubkey> approved_swap_programs
   const totalSize =
     1 + 4 + mints.length * 32 + 4 + approvedPrograms.length * 32;
   const buf = Buffer.alloc(totalSize);
   let offset = 0;
-  buf.writeUInt8(7, offset);
+  buf.writeUInt8(8, offset);
   offset += 1;
   buf.writeUInt32LE(mints.length, offset);
   offset += 4;
@@ -111,13 +125,13 @@ function encodeSetSellConfig(
 }
 
 function encodeCloseSellConfig(): Buffer {
-  return Buffer.from([8]);
+  return Buffer.from([9]);
 }
 
 function encodeSwapToken(swapData: Buffer): Buffer {
-  // variant 9 + vec<u8> swap_data
+  // variant 10 + vec<u8> swap_data
   const buf = Buffer.alloc(1 + 4 + swapData.length);
-  buf.writeUInt8(9, 0);
+  buf.writeUInt8(10, 0);
   buf.writeUInt32LE(swapData.length, 1);
   swapData.copy(buf, 5);
   return buf;
@@ -220,7 +234,7 @@ async function main() {
           isWritable: false,
         },
       ],
-      data: encodeCreateSplitter(nonce),
+      data: encodeCreateSplitter(nonce, "My Test Splitter"),
     });
     const tx = new Transaction().add(ix);
     await sendAndConfirmTransaction(connection, tx, [payer]);

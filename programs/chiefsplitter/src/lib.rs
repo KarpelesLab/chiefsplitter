@@ -31,6 +31,8 @@ pub enum SplitterInstruction {
     CreateSplitter {
         /// Nonce for PDA derivation (allows multiple splitters per creator)
         nonce: u64,
+        /// Human-readable name for the splitter (max 64 bytes UTF-8)
+        name: String,
     },
 
     /// Set the distribution configuration
@@ -87,6 +89,15 @@ pub enum SplitterInstruction {
     LockRecipient {
         /// Minimum guaranteed share in basis points
         min_share: u16,
+    },
+
+    /// Update the splitter's name (admin only)
+    ///
+    /// Accounts:
+    /// 0. `[writable]` Splitter
+    /// 1. `[signer]` Admin
+    SetSplitterName {
+        name: String,
     },
 
     /// Create or update sell configuration (token whitelist for auto-sell)
@@ -177,9 +188,9 @@ pub fn process_instruction(
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
     match instruction {
-        SplitterInstruction::CreateSplitter { nonce } => {
+        SplitterInstruction::CreateSplitter { nonce, name } => {
             msg!("Instruction: CreateSplitter (nonce={})", nonce);
-            process_create_splitter(program_id, accounts, nonce)
+            process_create_splitter(program_id, accounts, nonce, &name)
         }
         SplitterInstruction::SetSplitterDistribution { recipients } => {
             msg!("Instruction: SetSplitterDistribution ({} recipients)", recipients.len());
@@ -204,6 +215,10 @@ pub fn process_instruction(
         SplitterInstruction::LockRecipient { min_share } => {
             msg!("Instruction: LockRecipient (min_share={})", min_share);
             process_lock_recipient(program_id, accounts, min_share)
+        }
+        SplitterInstruction::SetSplitterName { name } => {
+            msg!("Instruction: SetSplitterName");
+            process_set_splitter_name(program_id, accounts, &name)
         }
         SplitterInstruction::SetSellConfig { whitelisted_mints, approved_swap_programs } => {
             msg!("Instruction: SetSellConfig ({} mints, {} programs)", whitelisted_mints.len(), approved_swap_programs.len());
@@ -230,12 +245,12 @@ mod tests {
 
     #[test]
     fn test_instruction_serialization() {
-        let instruction = SplitterInstruction::CreateSplitter { nonce: 42 };
+        let instruction = SplitterInstruction::CreateSplitter { nonce: 42, name: "test".to_string() };
         let serialized = borsh::to_vec(&instruction).unwrap();
         let deserialized: SplitterInstruction =
             BorshDeserialize::try_from_slice(&serialized).unwrap();
         match deserialized {
-            SplitterInstruction::CreateSplitter { nonce } => assert_eq!(nonce, 42),
+            SplitterInstruction::CreateSplitter { nonce, .. } => assert_eq!(nonce, 42),
             _ => panic!("Wrong instruction type"),
         }
     }

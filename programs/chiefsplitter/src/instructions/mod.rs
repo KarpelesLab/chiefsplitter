@@ -8,6 +8,7 @@ pub mod lock_recipient;
 pub mod set_sell_config;
 pub mod close_sell_config;
 pub mod swap_token;
+pub mod set_name;
 pub mod sns_proxy;
 
 pub use create::*;
@@ -20,4 +21,5 @@ pub use lock_recipient::*;
 pub use set_sell_config::*;
 pub use close_sell_config::*;
 pub use swap_token::*;
+pub use set_name::*;
 pub use sns_proxy::*;

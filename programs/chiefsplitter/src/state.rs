@@ -4,6 +4,9 @@ use solana_program::pubkey::Pubkey;
 /// Maximum number of recipients per splitter
 pub const MAX_RECIPIENTS: usize = 10;
 
+/// Maximum name length in bytes
+pub const MAX_NAME_LEN: usize = 64;
+
 /// Total shares must equal this value (100% in basis points = 1/100 of percent)
 pub const TOTAL_SHARES: u16 = 10000;
 
@@ -75,6 +78,10 @@ pub struct Splitter {
     pub num_recipients: u8,
     /// Fixed array of recipients (unused slots have address = Pubkey::default())
     pub recipients: [Recipient; MAX_RECIPIENTS],
+    /// Actual byte length of name
+    pub name_len: u8,
+    /// UTF-8 name, zero-padded
+    pub name: [u8; MAX_NAME_LEN],
 }
 
 impl Splitter {
@@ -85,11 +92,13 @@ impl Splitter {
         8 +                       // nonce
         1 +                       // bump
         1 +                       // num_recipients
-        MAX_RECIPIENTS * (32 + 2 + 2); // recipients (36 bytes each)
+        MAX_RECIPIENTS * (32 + 2 + 2) + // recipients (36 bytes each)
+        1 +                       // name_len
+        MAX_NAME_LEN;             // name
 
-    /// Create a new splitter
-    pub fn new(creator: Pubkey, nonce: u64, bump: u8) -> Self {
-        Self {
+    /// Create a new splitter with a name
+    pub fn new(creator: Pubkey, nonce: u64, bump: u8, name: &[u8]) -> Self {
+        let mut s = Self {
             discriminator: SPLITTER_DISCRIMINATOR,
             creator,
             admin: creator,
@@ -97,7 +106,19 @@ impl Splitter {
             bump,
             num_recipients: 0,
             recipients: [Recipient::default(); MAX_RECIPIENTS],
-        }
+            name_len: 0,
+            name: [0u8; MAX_NAME_LEN],
+        };
+        s.set_name(name);
+        s
+    }
+
+    /// Set the name (truncates to MAX_NAME_LEN)
+    pub fn set_name(&mut self, name: &[u8]) {
+        let len = name.len().min(MAX_NAME_LEN);
+        self.name[..len].copy_from_slice(&name[..len]);
+        self.name[len..].fill(0);
+        self.name_len = len as u8;
     }
 
     /// Check if splitter is initialized
@@ -204,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_splitter_size() {
-        let splitter = Splitter::new(Pubkey::default(), 0, 255);
+        let splitter = Splitter::new(Pubkey::default(), 0, 255, b"test");
         let serialized = borsh::to_vec(&splitter).unwrap();
         assert_eq!(serialized.len(), Splitter::LEN);
     }
