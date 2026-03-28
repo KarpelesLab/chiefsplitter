@@ -19,12 +19,6 @@ jobs:
           sh -c "$(curl -sSfL https://release.anza.xyz/${{ env.SOLANA_VERSION }}/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Fix Rust toolchain precedence
-        run: |
-          # Solana CLI bundles cargo 1.75 which can't parse edition 2024 crate manifests.
-          # Ensure system cargo (modern) takes precedence in PATH.
-          echo "$(dirname $(rustup which cargo))" >> $GITHUB_PATH
-
       - name: Generate keypair
         run: solana-keygen new --no-bip39-passphrase
 
