@@ -1,0 +1,271 @@
+{
+  "address": "ChiefYGYadRjMCgMNqbbFV8GUfiP2TqfRWzcWNynEoPh",
+  "metadata": {
+    "name": "chiefsplitter",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "origin": "native",
+    "serialization": "borsh",
+    "description": "Configurable fee splitter for SOL and SPL tokens. Supports both SPL Token and Token 2022. Uses Borsh enum discriminators (single u8 variant index)."
+  },
+  "instructions": [
+    {
+      "name": "createSplitter",
+      "discriminator": [0],
+      "docs": [
+        "Create a new fee splitter PDA.",
+        "PDA seeds: [\"splitter\", creator, nonce.to_le_bytes()]"
+      ],
+      "accounts": [
+        { "name": "splitter", "writable": true, "docs": ["Splitter PDA"] },
+        { "name": "creator", "writable": true, "signer": true, "docs": ["Creator / payer"] },
+        { "name": "systemProgram", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "nonce", "type": "u64", "docs": ["Nonce for PDA derivation"] },
+        { "name": "name", "type": "string", "docs": ["Human-readable name (max 64 bytes UTF-8)"] }
+      ]
+    },
+    {
+      "name": "setSplitterDistribution",
+      "discriminator": [1],
+      "docs": [
+        "Set recipient addresses and shares. Shares are in basis points (1/100 of percent) and must total 10000."
+      ],
+      "accounts": [
+        { "name": "splitter", "writable": true },
+        { "name": "admin", "signer": true }
+      ],
+      "args": [
+        { "name": "recipients", "type": { "vec": { "tuple": ["publicKey", "u16"] } }, "docs": ["(address, share_bps) pairs"] }
+      ]
+    },
+    {
+      "name": "setSplitterAdmin",
+      "discriminator": [2],
+      "docs": ["Transfer admin to a new address."],
+      "accounts": [
+        { "name": "splitter", "writable": true },
+        { "name": "admin", "signer": true }
+      ],
+      "args": [
+        { "name": "newAdmin", "type": "publicKey" }
+      ]
+    },
+    {
+      "name": "revokeSplitterAdmin",
+      "discriminator": [3],
+      "docs": ["Revoke admin permanently (set to Pubkey::default). Irreversible."],
+      "accounts": [
+        { "name": "splitter", "writable": true },
+        { "name": "admin", "signer": true }
+      ],
+      "args": []
+    },
+    {
+      "name": "distributeSOL",
+      "discriminator": [4],
+      "docs": [
+        "Distribute SOL above rent-exempt minimum to recipients. Permissionless crank."
+      ],
+      "accounts": [
+        { "name": "splitter", "writable": true, "docs": ["Splitter PDA (SOL source)"] }
+      ],
+      "remainingAccounts": "Recipients (writable, must match configured recipients in order)"
+    },
+    {
+      "name": "distributeToken",
+      "discriminator": [5],
+      "docs": [
+        "Distribute tokens from the splitter's token account to recipients. Permissionless crank."
+      ],
+      "accounts": [
+        { "name": "splitter", "docs": ["Splitter PDA (config + PDA signing)"] },
+        { "name": "mint", "docs": ["Token mint"] },
+        { "name": "splitterTokenAccount", "writable": true, "docs": ["Splitter's token account"] },
+        { "name": "tokenProgram", "docs": ["SPL Token or Token 2022"] }
+      ],
+      "remainingAccounts": "Recipient token accounts (writable, in order)"
+    },
+    {
+      "name": "lockRecipient",
+      "discriminator": [6],
+      "docs": [
+        "Lock a recipient to a guaranteed minimum share. The recipient signs to protect their own rate."
+      ],
+      "accounts": [
+        { "name": "splitter", "writable": true },
+        { "name": "recipient", "signer": true }
+      ],
+      "args": [
+        { "name": "minShare", "type": "u16", "docs": ["Minimum guaranteed share in basis points"] }
+      ]
+    },
+    {
+      "name": "setSplitterName",
+      "discriminator": [7],
+      "docs": ["Update the splitter's name (admin only)."],
+      "accounts": [
+        { "name": "splitter", "writable": true },
+        { "name": "admin", "signer": true }
+      ],
+      "args": [
+        { "name": "name", "type": "string", "docs": ["New name (max 64 bytes UTF-8)"] }
+      ]
+    },
+    {
+      "name": "setSellConfig",
+      "discriminator": [8],
+      "docs": [
+        "Create or update sell configuration. Whitelisted tokens are kept; non-whitelisted tokens can be swapped via approved DEX programs."
+      ],
+      "accounts": [
+        { "name": "splitter" },
+        { "name": "sellConfig", "writable": true, "docs": ["SellConfig PDA: [\"sell_config\", splitter]"] },
+        { "name": "admin", "signer": true },
+        { "name": "payer", "writable": true, "signer": true, "docs": ["Payer for account creation"] },
+        { "name": "systemProgram", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "whitelistedMints", "type": { "vec": "publicKey" }, "docs": ["Token mints to keep (max 10)"] },
+        { "name": "approvedSwapPrograms", "type": { "vec": "publicKey" }, "docs": ["Approved DEX program IDs (max 5)"] }
+      ]
+    },
+    {
+      "name": "closeSellConfig",
+      "discriminator": [9],
+      "docs": ["Close sell configuration (disables swapping). Returns rent to admin."],
+      "accounts": [
+        { "name": "splitter" },
+        { "name": "sellConfig", "writable": true },
+        { "name": "admin", "writable": true, "signer": true, "docs": ["Receives rent refund"] }
+      ],
+      "args": []
+    },
+    {
+      "name": "swapToken",
+      "discriminator": [10],
+      "docs": [
+        "Swap non-whitelisted tokens via an admin-approved DEX program (permissionless crank).",
+        "Output must be wSOL (auto-unwrapped to native SOL) or a whitelisted token.",
+        "Verifies source balance decreased and destination balance increased after CPI."
+      ],
+      "accounts": [
+        { "name": "splitter", "writable": true, "docs": ["Splitter PDA (signing + receives SOL on wSOL unwrap)"] },
+        { "name": "sellConfig", "docs": ["SellConfig PDA"] },
+        { "name": "sourceMint", "docs": ["Source token mint (must NOT be whitelisted)"] },
+        { "name": "sourceTokenAccount", "writable": true, "docs": ["Splitter's source token account"] },
+        { "name": "destTokenAccount", "writable": true, "docs": ["Splitter's destination token account"] },
+        { "name": "destMint", "docs": ["Destination mint (native SOL or whitelisted)"] },
+        { "name": "swapProgram", "docs": ["Must be in approved_programs list"] },
+        { "name": "tokenProgram", "docs": ["For wSOL close_account if needed"] }
+      ],
+      "remainingAccounts": "Accounts forwarded to swap program CPI",
+      "args": [
+        { "name": "swapData", "type": "bytes", "docs": ["Raw instruction data for the swap program"] }
+      ]
+    },
+    {
+      "name": "snsProxy",
+      "discriminator": [11],
+      "docs": [
+        "CPI proxy restricted to Bonfida SNS Name Service program.",
+        "Allows admin to set a primary .sol domain, update records, etc."
+      ],
+      "accounts": [
+        { "name": "splitter", "docs": ["Splitter PDA (config + signing)"] },
+        { "name": "admin", "signer": true },
+        { "name": "snsProgram", "address": "namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX", "docs": ["Bonfida SNS Name Service"] }
+      ],
+      "remainingAccounts": "Accounts forwarded to SNS program CPI",
+      "args": [
+        { "name": "snsData", "type": "bytes", "docs": ["Raw instruction data for the SNS program"] }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Splitter",
+      "discriminator": [241, 58, 124, 94, 43, 141, 79, 145],
+      "docs": ["Fee splitter account. PDA: [\"splitter\", creator, nonce.to_le_bytes()]"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "discriminator", "type": { "array": ["u8", 8] } },
+          { "name": "creator", "type": "publicKey" },
+          { "name": "admin", "type": "publicKey" },
+          { "name": "nonce", "type": "u64" },
+          { "name": "bump", "type": "u8" },
+          { "name": "numRecipients", "type": "u8" },
+          { "name": "recipients", "type": { "array": [{ "defined": "Recipient" }, 10] } },
+          { "name": "nameLen", "type": "u8" },
+          { "name": "name", "type": { "array": ["u8", 64] } }
+        ]
+      }
+    },
+    {
+      "name": "SellConfig",
+      "discriminator": [178, 77, 106, 31, 140, 62, 87, 160],
+      "docs": ["Sell configuration. PDA: [\"sell_config\", splitter]"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "discriminator", "type": { "array": ["u8", 8] } },
+          { "name": "splitter", "type": "publicKey" },
+          { "name": "numWhitelisted", "type": "u8" },
+          { "name": "whitelistedMints", "type": { "array": ["publicKey", 10] } },
+          { "name": "numApprovedPrograms", "type": "u8" },
+          { "name": "approvedPrograms", "type": { "array": ["publicKey", 5] } },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "Recipient",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "address", "type": "publicKey" },
+          { "name": "share", "type": "u16", "docs": ["Share in basis points (0-10000)"] },
+          { "name": "lockedShare", "type": "u16", "docs": ["Minimum guaranteed share (0 = not locked)"] }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    { "code": 0, "name": "AlreadyInitialized", "msg": "Account already initialized" },
+    { "code": 1, "name": "NotInitialized", "msg": "Account not initialized" },
+    { "code": 2, "name": "InvalidPDA", "msg": "Invalid PDA" },
+    { "code": 3, "name": "MissingRequiredSigner", "msg": "Missing required signer" },
+    { "code": 4, "name": "InvalidAuthority", "msg": "Invalid authority" },
+    { "code": 5, "name": "AdminRevoked", "msg": "Admin has been revoked" },
+    { "code": 6, "name": "InvalidShareTotal", "msg": "Shares must total 10000" },
+    { "code": 7, "name": "TooManyRecipients", "msg": "Too many recipients (max 10)" },
+    { "code": 8, "name": "LockedShareViolation", "msg": "Cannot reduce locked recipient below locked share" },
+    { "code": 9, "name": "NoRecipients", "msg": "No recipients configured" },
+    { "code": 10, "name": "NothingToDistribute", "msg": "Nothing to distribute" },
+    { "code": 11, "name": "RecipientCountMismatch", "msg": "Recipient count mismatch" },
+    { "code": 12, "name": "RecipientAddressMismatch", "msg": "Recipient address mismatch" },
+    { "code": 13, "name": "InvalidTokenProgram", "msg": "Invalid token program" },
+    { "code": 14, "name": "InvalidTokenAccountOwner", "msg": "Invalid token account owner" },
+    { "code": 15, "name": "InvalidTokenAccountMint", "msg": "Invalid token account mint" },
+    { "code": 16, "name": "NotARecipient", "msg": "Signer is not a configured recipient" },
+    { "code": 17, "name": "LockShareNotIncreased", "msg": "Lock share not increased" },
+    { "code": 18, "name": "LockShareExceedsCurrent", "msg": "Lock share exceeds current share" },
+    { "code": 19, "name": "ZeroShare", "msg": "Zero share not allowed" },
+    { "code": 20, "name": "InvalidAccountOwner", "msg": "Invalid account owner" },
+    { "code": 21, "name": "TooManyWhitelistedMints", "msg": "Too many whitelisted mints (max 10)" },
+    { "code": 22, "name": "SellConfigNotFound", "msg": "Sell config not found" },
+    { "code": 23, "name": "TokenWhitelisted", "msg": "Token is whitelisted and cannot be sold" },
+    { "code": 24, "name": "ZeroSolAmount", "msg": "Zero SOL amount" },
+    { "code": 25, "name": "SellConfigSplitterMismatch", "msg": "Sell config splitter mismatch" },
+    { "code": 26, "name": "TooManyApprovedPrograms", "msg": "Too many approved programs (max 5)" },
+    { "code": 27, "name": "SwapProgramNotApproved", "msg": "Swap program not approved" },
+    { "code": 28, "name": "DestinationNotAllowed", "msg": "Destination must be native SOL or whitelisted" },
+    { "code": 29, "name": "SwapSourceNotDecreased", "msg": "Swap did not decrease source balance" },
+    { "code": 30, "name": "SwapDestNotIncreased", "msg": "Swap did not increase dest balance" },
+    { "code": 31, "name": "NameTooLong", "msg": "Name exceeds 64 bytes" }
+  ]
+}
