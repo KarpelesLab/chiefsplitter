@@ -132,6 +132,20 @@ pub enum SplitterInstruction {
         /// Raw instruction data forwarded to the swap program
         swap_data: Vec<u8>,
     },
+
+    /// CPI proxy restricted to Bonfida SNS Name Service program.
+    /// Allows the admin to set a primary .sol domain, update records, etc.
+    /// Cannot touch tokens or SOL — only the SNS program is allowed.
+    ///
+    /// Accounts:
+    /// 0. `[]` Splitter (config + PDA signing)
+    /// 1. `[signer]` Admin
+    /// 2. `[]` SNS Name Service program (must be namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX)
+    /// 3..N Remaining accounts forwarded to SNS program
+    SnsProxy {
+        /// Raw instruction data forwarded to the SNS program
+        sns_data: Vec<u8>,
+    },
 }
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -202,6 +216,10 @@ pub fn process_instruction(
         SplitterInstruction::SwapToken { swap_data } => {
             msg!("Instruction: SwapToken ({} bytes)", swap_data.len());
             process_swap_token(program_id, accounts, &swap_data)
+        }
+        SplitterInstruction::SnsProxy { sns_data } => {
+            msg!("Instruction: SnsProxy ({} bytes)", sns_data.len());
+            process_sns_proxy(program_id, accounts, &sns_data)
         }
     }
 }

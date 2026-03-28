@@ -32,6 +32,14 @@ pub fn is_valid_token_program(key: &Pubkey) -> bool {
     *key == spl_token_2022::id() || *key == SPL_TOKEN_PROGRAM_ID
 }
 
+/// Bonfida SNS Name Service program ID (namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX)
+pub const SNS_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
+    0x0b, 0xad, 0x51, 0xf4, 0x13, 0xc1, 0xf3, 0xa9,
+    0x94, 0x60, 0xd9, 0x00, 0xd8, 0xbf, 0x2e, 0xd6,
+    0x92, 0x7e, 0xca, 0x34, 0xd7, 0xb7, 0x84, 0x2b,
+    0xf8, 0x10, 0xa9, 0x73, 0x08, 0x2d, 0x1e, 0xdc,
+]);
+
 /// Account discriminator for Splitter accounts
 pub const SPLITTER_DISCRIMINATOR: [u8; 8] = [0xf1, 0x3a, 0x7c, 0x5e, 0x2b, 0x8d, 0x4f, 0x91];
 
@@ -254,6 +262,14 @@ mod tests {
         assert!(config.is_whitelisted(&mint1));
         assert!(config.is_whitelisted(&mint2));
         assert!(!config.is_whitelisted(&mint3));
+    }
+
+    #[test]
+    fn test_sns_program_id() {
+        let expected: Pubkey = "namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX"
+            .parse()
+            .unwrap();
+        assert_eq!(SNS_PROGRAM_ID, expected);
     }
 
     #[test]
