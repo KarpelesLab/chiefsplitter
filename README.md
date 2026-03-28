@@ -25,7 +25,7 @@ Shares use basis points: 10000 = 100%. Each recipient gets `floor(total * share 
 ## Program ID
 
 ```
-BJhDuHcZRRtAFC9BTwv8wHfdwNkgXBgxf7CZaecbUqQ1
+ChiefYGYadRjMCgMNqbbFV8GUfiP2TqfRWzcWNynEoPh
 ```
 
 ## Instructions
@@ -103,7 +103,7 @@ cargo test
 ```bash
 # Start local validator with program loaded
 solana-test-validator \
-  --upgradeable-program BJhDuHcZRRtAFC9BTwv8wHfdwNkgXBgxf7CZaecbUqQ1 \
+  --upgradeable-program ChiefYGYadRjMCgMNqbbFV8GUfiP2TqfRWzcWNynEoPh \
   target/deploy/chiefsplitter.so ~/.config/solana/id.json \
   --reset &
 

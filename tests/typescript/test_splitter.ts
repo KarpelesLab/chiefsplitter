@@ -21,7 +21,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const PROGRAM_ID = new PublicKey(
-  "BJhDuHcZRRtAFC9BTwv8wHfdwNkgXBgxf7CZaecbUqQ1"
+  "ChiefYGYadRjMCgMNqbbFV8GUfiP2TqfRWzcWNynEoPh"
 );
 
 const SPLITTER_SEED = Buffer.from("splitter");

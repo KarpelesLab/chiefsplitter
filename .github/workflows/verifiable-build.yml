@@ -36,7 +36,7 @@ jobs:
             --rpc-port 8899 \
             --faucet-port 9900 \
             --slots-per-epoch 32 \
-            --upgradeable-program BJhDuHcZRRtAFC9BTwv8wHfdwNkgXBgxf7CZaecbUqQ1 target/deploy/chiefsplitter.so ~/.config/solana/id.json \
+            --upgradeable-program ChiefYGYadRjMCgMNqbbFV8GUfiP2TqfRWzcWNynEoPh target/deploy/chiefsplitter.so ~/.config/solana/id.json \
             --log &
           sleep 5
 

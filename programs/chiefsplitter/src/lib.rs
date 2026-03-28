@@ -17,7 +17,7 @@ pub mod state;
 
 use instructions::*;
 
-solana_program::declare_id!("BJhDuHcZRRtAFC9BTwv8wHfdwNkgXBgxf7CZaecbUqQ1");
+solana_program::declare_id!("ChiefYGYadRjMCgMNqbbFV8GUfiP2TqfRWzcWNynEoPh");
 
 /// Program instructions
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
