@@ -104,10 +104,16 @@ impl Splitter {
             admin: creator,
             nonce,
             bump,
-            num_recipients: 0,
+            num_recipients: 1,
             recipients: [Recipient::default(); MAX_RECIPIENTS],
             name_len: 0,
             name: [0u8; MAX_NAME_LEN],
+        };
+        // Default: 100% to creator
+        s.recipients[0] = Recipient {
+            address: creator,
+            share: TOTAL_SHARES,
+            locked_share: 0,
         };
         s.set_name(name);
         s
