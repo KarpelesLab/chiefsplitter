@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  SOLANA_VERSION: v2.0.25
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Generate keypair
+        run: solana-keygen new --no-bip39-passphrase
+
+      - name: Build program
+        run: cargo build-sbf --workspace
+
+      - name: Run unit tests
+        run: cargo test --workspace
+
+      - name: Start test validator with upgradeable program
+        run: |
+          solana config set --url http://localhost:8899 --keypair ~/.config/solana/id.json
+          solana-test-validator \
+            --ledger test-ledger \
+            --rpc-port 8899 \
+            --faucet-port 9900 \
+            --slots-per-epoch 32 \
+            --upgradeable-program BJhDuHcZRRtAFC9BTwv8wHfdwNkgXBgxf7CZaecbUqQ1 target/deploy/chiefsplitter.so ~/.config/solana/id.json \
+            --log &
+          sleep 5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install test dependencies
+        run: cd tests/typescript && npm install
+
+      - name: Run E2E tests
+        run: cd tests/typescript && npm test
+
+  verifiable-build:
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+
+      - name: Install solana-verify
+        run: cargo install solana-verify --version 0.4.11
+
+      - name: Build verifiable binary
+        run: solana-verify build --library-name chiefsplitter
+
+      - name: Print executable hash
+        run: solana-verify get-executable-hash target/deploy/chiefsplitter.so
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chiefsplitter-verifiable
+          path: target/deploy/chiefsplitter.so
+          retention-days: 90

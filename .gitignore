@@ -1,0 +1,22 @@
+# Build artifacts
+target/
+dist/
+
+# Test validator ledger
+test-ledger/
+
+# Node modules
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
