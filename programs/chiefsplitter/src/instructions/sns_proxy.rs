@@ -61,14 +61,16 @@ pub fn process_sns_proxy(
         return Err(SplitterError::InvalidPDA.into());
     }
 
-    // Build CPI instruction from remaining accounts
+    // Build CPI instruction from remaining accounts.
+    // Mark the splitter PDA as signer — invoke_signed provides the signature.
     let cpi_account_metas: Vec<AccountMeta> = remaining_accounts
         .iter()
         .map(|a| {
+            let is_pda = *a.key == *splitter_info.key;
             if a.is_writable {
-                AccountMeta::new(*a.key, false)
+                AccountMeta::new(*a.key, is_pda)
             } else {
-                AccountMeta::new_readonly(*a.key, false)
+                AccountMeta::new_readonly(*a.key, is_pda)
             }
         })
         .collect();
