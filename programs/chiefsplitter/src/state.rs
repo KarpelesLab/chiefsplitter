@@ -43,6 +43,15 @@ pub const SNS_PROGRAM_ID: Pubkey = Pubkey::new_from_array([
     0xf8, 0x10, 0xa9, 0x73, 0x08, 0x2d, 0x1e, 0xdc,
 ]);
 
+/// Bonfida Name Offers program ID (85iDfUvr3HJyLM2zcq5BXSiDvUWfw6cSE1FfNBo8Ap29)
+/// Used by registerFavorite (set primary domain)
+pub const SNS_NAME_OFFERS_ID: Pubkey = Pubkey::new_from_array([
+    0x69, 0x36, 0xbc, 0xc8, 0xf9, 0x07, 0xbc, 0x81,
+    0x44, 0xf3, 0x82, 0x06, 0x10, 0x1c, 0xec, 0x28,
+    0x46, 0x7c, 0x24, 0xc7, 0x3e, 0xeb, 0x35, 0x98,
+    0x9c, 0xe1, 0xd2, 0xbb, 0x5e, 0x28, 0x58, 0x76,
+]);
+
 /// Account discriminator for Splitter accounts
 pub const SPLITTER_DISCRIMINATOR: [u8; 8] = [0xf1, 0x3a, 0x7c, 0x5e, 0x2b, 0x8d, 0x4f, 0x91];
 
@@ -297,6 +306,14 @@ mod tests {
             .parse()
             .unwrap();
         assert_eq!(SNS_PROGRAM_ID, expected);
+    }
+
+    #[test]
+    fn test_sns_name_offers_id() {
+        let expected: Pubkey = "85iDfUvr3HJyLM2zcq5BXSiDvUWfw6cSE1FfNBo8Ap29"
+            .parse()
+            .unwrap();
+        assert_eq!(SNS_NAME_OFFERS_ID, expected);
     }
 
     #[test]

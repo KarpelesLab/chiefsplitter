@@ -10,7 +10,7 @@ use solana_program::{
 
 use crate::{
     error::SplitterError,
-    state::{Splitter, SNS_PROGRAM_ID, SPLITTER_SEED},
+    state::{Splitter, SNS_NAME_OFFERS_ID, SNS_PROGRAM_ID, SPLITTER_SEED},
 };
 
 /// CPI proxy restricted to Bonfida SNS Name Service program.
@@ -55,9 +55,9 @@ pub fn process_sns_proxy(
         return Err(SplitterError::InvalidAuthority.into());
     }
 
-    // MUST be the Bonfida SNS Name Service program — nothing else
-    if *sns_program_info.key != SNS_PROGRAM_ID {
-        msg!("SNS proxy only allows CPI to {}", SNS_PROGRAM_ID);
+    // MUST be a Bonfida SNS program — nothing else
+    if *sns_program_info.key != SNS_PROGRAM_ID && *sns_program_info.key != SNS_NAME_OFFERS_ID {
+        msg!("SNS proxy only allows CPI to SNS programs");
         return Err(SplitterError::InvalidPDA.into());
     }
 
