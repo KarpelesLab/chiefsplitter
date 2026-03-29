@@ -74,7 +74,7 @@ pub fn process_sns_proxy(
         .collect();
 
     let sns_ix = Instruction {
-        program_id: SNS_PROGRAM_ID,
+        program_id: *sns_program_info.key,
         accounts: cpi_account_metas,
         data: sns_data.to_vec(),
     };
