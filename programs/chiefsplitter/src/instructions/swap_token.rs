@@ -94,7 +94,15 @@ pub fn process_swap_token(
     }
 
     // --- Dest mint must be native (wSOL → auto-unwrap) OR whitelisted ---
-    let is_native_dest = *dest_mint_info.key == spl_token_2022::native_mint::id();
+    // SPL Token native mint (So11111111111111111111111111111111111111112)
+    const SPL_NATIVE_MINT: Pubkey = Pubkey::new_from_array([
+        0x06, 0x9b, 0x88, 0x57, 0xfe, 0xab, 0x81, 0x84,
+        0xfb, 0x68, 0x7f, 0x63, 0x46, 0x18, 0xc0, 0x35,
+        0xda, 0xc4, 0x39, 0xdc, 0x1a, 0xeb, 0x3b, 0x55,
+        0x98, 0xa0, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x01,
+    ]);
+    let is_native_dest = *dest_mint_info.key == SPL_NATIVE_MINT
+        || *dest_mint_info.key == spl_token_2022::native_mint::id();
     if !is_native_dest && !sell_config.is_whitelisted(dest_mint_info.key) {
         return Err(SplitterError::DestinationNotAllowed.into());
     }
