@@ -5,7 +5,6 @@ use solana_program::{
     instruction::{AccountMeta, Instruction},
     msg,
     program::invoke_signed,
-    program_pack::Pack,
     pubkey::Pubkey,
 };
 
@@ -124,6 +123,20 @@ pub fn process_swap_token(
         }
     }
 
+    // --- Verify destination token account belongs to splitter ---
+    // The swap CPI runs with the splitter's signer privilege, so the proceeds
+    // must land in an account the splitter owns (not one picked by the cranker).
+    {
+        let data = dest_token_info.try_borrow_data()?;
+        let acct = spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data)?;
+        if acct.base.owner != *splitter_info.key {
+            return Err(SplitterError::InvalidTokenAccountOwner.into());
+        }
+        if acct.base.mint != *dest_mint_info.key {
+            return Err(SplitterError::InvalidTokenAccountMint.into());
+        }
+    }
+
     // --- Record balances before ---
     let source_before = read_token_balance(source_token_info)?;
     let dest_before = read_token_balance(dest_token_info)?;
@@ -135,13 +148,15 @@ pub fn process_swap_token(
     // --- Build CPI to swap program ---
     // All remaining accounts form the instruction for the swap program.
     // The cranker is responsible for ordering them correctly.
+    // Mark the splitter PDA as signer — invoke_signed provides the signature.
     let cpi_account_metas: Vec<AccountMeta> = remaining_accounts
         .iter()
         .map(|a| {
+            let is_pda = *a.key == *splitter_info.key;
             if a.is_writable {
-                AccountMeta::new(*a.key, false)
+                AccountMeta::new(*a.key, is_pda)
             } else {
-                AccountMeta::new_readonly(*a.key, false)
+                AccountMeta::new_readonly(*a.key, is_pda)
             }
         })
         .collect();

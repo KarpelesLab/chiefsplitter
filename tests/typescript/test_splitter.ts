@@ -915,6 +915,58 @@ async function main() {
     }
   });
 
+  // SwapToken rejects a destination token account not owned by the splitter
+  // (the swap CPI is signed by the splitter PDA, so proceeds must stay with it)
+  await test("SwapToken rejects destination not owned by splitter", async () => {
+    const sellNonce = BigInt(3);
+    const [sellSplitterPDA] = findSplitterPDA(payer.publicKey, sellNonce);
+    const [sellConfigPDA] = findSellConfigPDA(sellSplitterPDA);
+
+    const configInfo = await connection.getAccountInfo(sellConfigPDA);
+    if (!configInfo) throw new Error("SellConfig missing");
+    // disc(8) + splitter(32) + num_whitelisted(1) + mints(MAX_WHITELIST*32) + num_programs(1) + programs
+    const whitelistedMint = new PublicKey(configInfo.data.subarray(41, 73));
+    const programsOffset = 41 + 10 * 32 + 1; // MAX_WHITELIST = 10
+    const approvedProgram = new PublicKey(configInfo.data.subarray(programsOffset, programsOffset + 32));
+
+    const junkMint = await createMint(
+      connection, payer, payer.publicKey, null, 6, undefined, undefined, TOKEN_PROGRAM_ID
+    );
+    const splitterJunkATA = await getOrCreateAssociatedTokenAccount(
+      connection, payer, junkMint, sellSplitterPDA, true
+    );
+    await mintTo(connection, payer, junkMint, splitterJunkATA.address, payer, 1_000_000);
+
+    // Destination is the cranker's own account for the whitelisted mint
+    const crankerDestATA = await getOrCreateAssociatedTokenAccount(
+      connection, payer, whitelistedMint, payer.publicKey
+    );
+
+    const swapIx = new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: sellSplitterPDA, isSigner: false, isWritable: true },
+        { pubkey: sellConfigPDA, isSigner: false, isWritable: false },
+        { pubkey: junkMint, isSigner: false, isWritable: false },
+        { pubkey: splitterJunkATA.address, isSigner: false, isWritable: true },
+        { pubkey: crankerDestATA.address, isSigner: false, isWritable: true }, // not the splitter's!
+        { pubkey: whitelistedMint, isSigner: false, isWritable: false },
+        { pubkey: approvedProgram, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      ],
+      data: encodeSwapToken(Buffer.from([0])),
+    });
+    try {
+      await sendAndConfirmTransaction(connection, new Transaction().add(swapIx), [payer]);
+      throw new Error("Should have failed");
+    } catch (e: any) {
+      if (e.message === "Should have failed") throw e;
+      const text = e.message + " " + (e.logs || e.transactionLogs || []).join(" ");
+      // 0xe = InvalidTokenAccountOwner
+      if (!text.includes("0xe")) throw new Error("Expected InvalidTokenAccountOwner (0xe), got: " + text);
+    }
+  });
+
   // Test 16: CloseSellConfig
   await test("CloseSellConfig disables selling", async () => {
     const sellNonce = BigInt(3);
