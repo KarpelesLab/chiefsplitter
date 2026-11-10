@@ -45,6 +45,6 @@ if [ $# -eq 0 ]; then
     echo "Building all Solana programs..."
     cargo build-sbf "${SBF_ARGS[@]}" --workspace "$@"
 else
-    echo "Building with args: $@"
+    echo "Building with args: $*"
     cargo build-sbf "${SBF_ARGS[@]}" "$@"
 fi
