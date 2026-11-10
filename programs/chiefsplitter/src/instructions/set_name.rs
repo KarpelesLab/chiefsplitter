@@ -17,7 +17,7 @@ use crate::{
 /// 0. `[writable]` Splitter
 /// 1. `[signer]` Admin
 pub fn process_set_splitter_name(
-    _program_id: &Pubkey,
+    program_id: &Pubkey,
     accounts: &[AccountInfo],
     name: &str,
 ) -> ProgramResult {
@@ -32,6 +32,11 @@ pub fn process_set_splitter_name(
 
     if name.len() > MAX_NAME_LEN {
         return Err(SplitterError::NameTooLong.into());
+    }
+
+    // Defense in depth: the splitter must be owned by this program
+    if splitter_info.owner != program_id {
+        return Err(SplitterError::InvalidAccountOwner.into());
     }
 
     let mut splitter = {
@@ -57,4 +62,82 @@ pub fn process_set_splitter_name(
     msg!("Splitter name updated");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solana_program::program_error::ProgramError;
+
+    /// Run `f` with (splitter, signer) account infos. The splitter account holds
+    /// a serialized `splitter` and is owned by `owner`. Returns the result and
+    /// the splitter state afterwards.
+    fn with_accounts<R>(
+        splitter: &Splitter,
+        owner: &Pubkey,
+        signer: &Pubkey,
+        f: impl FnOnce(&[AccountInfo]) -> R,
+    ) -> (R, Splitter) {
+        let splitter_key = Pubkey::new_unique();
+        let system = Pubkey::default();
+        let mut data = borsh::to_vec(splitter).unwrap();
+        let (mut lamports, mut signer_lamports) = (1_000_000u64, 1_000_000u64);
+        let mut signer_data: [u8; 0] = [];
+        let result = {
+            let accounts = [
+                AccountInfo::new(
+                    &splitter_key,
+                    false,
+                    true,
+                    &mut lamports,
+                    &mut data,
+                    owner,
+                    false,
+                    0,
+                ),
+                AccountInfo::new(
+                    signer,
+                    true,
+                    false,
+                    &mut signer_lamports,
+                    &mut signer_data,
+                    &system,
+                    false,
+                    0,
+                ),
+            ];
+            f(&accounts)
+        };
+        (result, Splitter::try_from_slice(&data).unwrap())
+    }
+
+    fn wrong_owner() -> ProgramError {
+        SplitterError::InvalidAccountOwner.into()
+    }
+
+    #[test]
+    fn sets_name() {
+        let program_id = crate::id();
+        let admin = Pubkey::new_unique();
+        let splitter = Splitter::new(admin, 0, 255, b"old name");
+
+        let (res, after) = with_accounts(&splitter, &program_id, &admin, |accounts| {
+            process_set_splitter_name(&program_id, accounts, "new")
+        });
+        assert_eq!(res, Ok(()));
+        assert_eq!(&after.name[..after.name_len as usize], b"new");
+    }
+
+    #[test]
+    fn rejects_splitter_not_owned_by_program() {
+        let program_id = crate::id();
+        let admin = Pubkey::new_unique();
+        let splitter = Splitter::new(admin, 0, 255, b"old name");
+
+        let (res, after) = with_accounts(&splitter, &Pubkey::new_unique(), &admin, |accounts| {
+            process_set_splitter_name(&program_id, accounts, "new")
+        });
+        assert_eq!(res, Err(wrong_owner()));
+        assert_eq!(&after.name[..after.name_len as usize], b"old name");
+    }
 }
