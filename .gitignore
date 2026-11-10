@@ -25,3 +25,8 @@ Thumbs.db
 !package-lock.json
 !tsconfig.json
 !idl.json
+# Pinned tooling for scripts/publish-idl.sh (explicit, in case the generic
+# negations above are ever narrowed)
+!scripts/package.json
+!scripts/package-lock.json
+scripts/node_modules/
