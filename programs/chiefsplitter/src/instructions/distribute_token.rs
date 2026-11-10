@@ -4,10 +4,12 @@ use solana_program::{
     entrypoint::ProgramResult,
     msg,
     program::invoke_signed,
-    program_pack::Pack,
     pubkey::Pubkey,
 };
-use spl_token_2022::state::Mint;
+use spl_token_2022::{
+    extension::StateWithExtensions,
+    state::{Account as TokenAccount, Mint},
+};
 
 use crate::{
     error::SplitterError,
@@ -23,10 +25,7 @@ use crate::{
 /// 2. `[writable]` Splitter's token account
 /// 3. `[]` Token program (SPL Token or Token 2022)
 /// 4..N `[writable]` Recipient token accounts (must match configured recipients in order)
-pub fn process_distribute_token(
-    _program_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
+pub fn process_distribute_token(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
     let splitter_info = next_account_info(account_info_iter)?;
@@ -37,6 +36,11 @@ pub fn process_distribute_token(
     // Validate token program
     if !is_valid_token_program(token_program_info.key) {
         return Err(SplitterError::InvalidTokenProgram.into());
+    }
+
+    // The splitter must be owned by this program before its data is trusted
+    if splitter_info.owner != program_id {
+        return Err(SplitterError::InvalidAccountOwner.into());
     }
 
     // Deserialize splitter
@@ -61,7 +65,7 @@ pub fn process_distribute_token(
     // Unpack the token account to get balance and verify owner/mint
     let token_account = {
         let data = splitter_token_info.try_borrow_data()?;
-        spl_token_2022::extension::StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data)?.base
+        StateWithExtensions::<TokenAccount>::unpack(&data)?.base
     };
 
     // Verify the token account is owned by the splitter PDA
@@ -79,18 +83,55 @@ pub fn process_distribute_token(
         return Err(SplitterError::NothingToDistribute.into());
     }
 
-    // Get mint decimals for transfer_checked
+    // The mint must belong to the token program being invoked
+    if mint_info.owner != token_program_info.key {
+        return Err(SplitterError::InvalidTokenAccountMint.into());
+    }
+
+    // Get mint decimals for transfer_checked. StateWithExtensions accepts both
+    // plain SPL Token mints and Token 2022 mints carrying extensions.
     let decimals = {
         let mint_data = mint_info.try_borrow_data()?;
-        Mint::unpack(&mint_data)?.decimals
+        StateWithExtensions::<Mint>::unpack(&mint_data)?
+            .base
+            .decimals
     };
 
-    // Collect recipient token accounts
+    // Collect and validate recipient token accounts. This instruction is a
+    // permissionless crank, so every destination must be proven to belong to
+    // the configured recipient at the same index before anything is moved.
     let num = splitter.num_recipients as usize;
     let mut recipient_token_infos: Vec<&AccountInfo> = Vec::with_capacity(num);
-    for _ in 0..num {
+    for i in 0..num {
         let recipient_token_info = next_account_info(account_info_iter)
             .map_err(|_| SplitterError::RecipientCountMismatch)?;
+
+        // Must be a token account of the same token program used for the CPI
+        if recipient_token_info.owner != token_program_info.key {
+            return Err(SplitterError::InvalidTokenAccountOwner.into());
+        }
+
+        // Borrow is scoped so it is released before the transfer CPI
+        let recipient_token_account = {
+            let data = recipient_token_info.try_borrow_data()?;
+            StateWithExtensions::<TokenAccount>::unpack(&data)?.base
+        };
+
+        if recipient_token_account.owner != splitter.recipients[i].address {
+            msg!(
+                "Recipient {} token account {} is owned by {} expected {}",
+                i,
+                recipient_token_info.key,
+                recipient_token_account.owner,
+                splitter.recipients[i].address
+            );
+            return Err(SplitterError::RecipientAddressMismatch.into());
+        }
+
+        if recipient_token_account.mint != *mint_info.key {
+            return Err(SplitterError::InvalidTokenAccountMint.into());
+        }
+
         recipient_token_infos.push(recipient_token_info);
     }
 
@@ -133,21 +174,12 @@ pub fn process_distribute_token(
                 &[signer_seeds],
             )?;
 
-            emit_distribution(
-                &splitter_key,
-                &splitter.recipients[i].address,
-                amount,
-                true,
-            );
+            emit_distribution(&splitter_key, &splitter.recipients[i].address, amount, true);
             total_sent += amount;
         }
     }
 
-    msg!(
-        "Distributed {} tokens to {} recipients",
-        total_sent,
-        num
-    );
+    msg!("Distributed {} tokens to {} recipients", total_sent, num);
 
     Ok(())
 }

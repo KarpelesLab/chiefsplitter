@@ -8,24 +8,22 @@ use solana_program::{
     sysvar::Sysvar,
 };
 
-use crate::{
-    error::SplitterError,
-    events::emit_distribution,
-    state::Splitter,
-};
+use crate::{error::SplitterError, events::emit_distribution, state::Splitter};
 
 /// Distribute SOL from the splitter PDA to recipients (permissionless crank)
 ///
 /// Accounts:
 /// 0. `[writable]` Splitter
 /// 1..N `[writable]` Recipient accounts (must match configured recipients in order)
-pub fn process_distribute_sol(
-    _program_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
+pub fn process_distribute_sol(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
     let splitter_info = next_account_info(account_info_iter)?;
+
+    // The splitter must be owned by this program before its data is trusted
+    if splitter_info.owner != program_id {
+        return Err(SplitterError::InvalidAccountOwner.into());
+    }
 
     // Deserialize splitter (read-only borrow, then drop)
     let splitter = {
