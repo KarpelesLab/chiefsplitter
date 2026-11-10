@@ -3,6 +3,7 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
+    program_error::ProgramError,
     pubkey::Pubkey,
 };
 
@@ -17,10 +18,7 @@ use crate::{
 /// 0. `[]` Splitter
 /// 1. `[writable]` SellConfig PDA
 /// 2. `[writable, signer]` Admin (receives rent refund)
-pub fn process_close_sell_config(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-) -> ProgramResult {
+pub fn process_close_sell_config(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let account_info_iter = &mut accounts.iter();
 
     let splitter_info = next_account_info(account_info_iter)?;
@@ -32,6 +30,9 @@ pub fn process_close_sell_config(
     }
 
     // Validate splitter
+    if splitter_info.owner != program_id {
+        return Err(SplitterError::InvalidAccountOwner.into());
+    }
     let splitter = {
         let data = splitter_info.try_borrow_data()?;
         Splitter::try_from_slice(&data).map_err(|_| SplitterError::NotInitialized)?
@@ -48,15 +49,16 @@ pub fn process_close_sell_config(
     }
 
     // Verify sell config PDA
-    let (expected_pda, _) = Pubkey::find_program_address(
-        &[SELL_CONFIG_SEED, splitter_info.key.as_ref()],
-        program_id,
-    );
+    let (expected_pda, _) =
+        Pubkey::find_program_address(&[SELL_CONFIG_SEED, splitter_info.key.as_ref()], program_id);
     if *sell_config_info.key != expected_pda {
         return Err(SplitterError::InvalidPDA.into());
     }
 
-    // Verify sell config is initialized
+    // Verify sell config is owned by this program and initialized
+    if sell_config_info.owner != program_id {
+        return Err(SplitterError::SellConfigNotFound.into());
+    }
     {
         let data = sell_config_info.try_borrow_data()?;
         let config =
@@ -72,7 +74,7 @@ pub fn process_close_sell_config(
 
     **admin_info.try_borrow_mut_lamports()? = dest_lamports
         .checked_add(source_lamports)
-        .ok_or(SplitterError::InvalidPDA)?; // overflow guard
+        .ok_or(ProgramError::ArithmeticOverflow)?; // overflow guard
     **sell_config_info.try_borrow_mut_lamports()? = 0;
 
     // Zero out the data to prevent reuse without re-creation
