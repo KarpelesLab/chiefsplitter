@@ -144,15 +144,25 @@ pub enum SplitterInstruction {
         swap_data: Vec<u8>,
     },
 
-    /// CPI proxy restricted to Bonfida SNS Name Service program.
-    /// Allows the admin to set a primary .sol domain, update records, etc.
-    /// Cannot touch tokens or SOL — only the SNS program is allowed.
+    /// CPI proxy (admin only) restricted to two Bonfida SNS programs and to an
+    /// allow-list of their instructions (first byte of `sns_data`):
+    /// - SNS Name Service (namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX):
+    ///   `Update` (tag 1) only.
+    /// - Name Offers (85iDfUvr3HJyLM2zcq5BXSiDvUWfw6cSE1FfNBo8Ap29):
+    ///   `RegisterFavourite` (tag 6) and `UnregisterFavourite` (tag 13) only.
+    ///
+    /// Allows the admin to set / clear the splitter's primary .sol domain and
+    /// update name records. Cannot touch tokens or SOL: the call is rejected if
+    /// any remaining account is a token program (SPL Token / Token 2022), the
+    /// associated-token program, or an account owned by a token program, and
+    /// the splitter's lamport balance must not decrease across the CPI.
+    /// `sns_data` must be non-empty. Only the splitter PDA signs the CPI.
     ///
     /// Accounts:
     /// 0. `[]` Splitter (config + PDA signing)
     /// 1. `[signer]` Admin
-    /// 2. `[]` SNS Name Service program (must be namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX)
-    /// 3..N Remaining accounts forwarded to SNS program
+    /// 2. `[]` SNS program (Name Service or Name Offers, see above)
+    /// 3..N Remaining accounts forwarded to the SNS program (no token accounts)
     SnsProxy {
         /// Raw instruction data forwarded to the SNS program
         sns_data: Vec<u8>,

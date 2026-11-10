@@ -169,17 +169,20 @@
       "name": "snsProxy",
       "discriminator": [11],
       "docs": [
-        "CPI proxy restricted to Bonfida SNS Name Service program.",
-        "Allows admin to set a primary .sol domain, update records, etc."
+        "CPI proxy (admin only) restricted to two Bonfida SNS programs and an allow-list of their instructions.",
+        "SNS Name Service (namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX): Update (tag 1) only.",
+        "Name Offers (85iDfUvr3HJyLM2zcq5BXSiDvUWfw6cSE1FfNBo8Ap29): RegisterFavourite (tag 6) and UnregisterFavourite (tag 13) only.",
+        "Allows admin to set / clear the primary .sol domain and update name records.",
+        "Cannot touch tokens or SOL: rejected if any remaining account is a token program, the associated-token program, or an account owned by a token program; splitter lamports must not decrease."
       ],
       "accounts": [
         { "name": "splitter", "docs": ["Splitter PDA (config + signing)"] },
         { "name": "admin", "signer": true },
-        { "name": "snsProgram", "address": "namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX", "docs": ["Bonfida SNS Name Service"] }
+        { "name": "snsProgram", "docs": ["Bonfida SNS Name Service (namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX) or Name Offers (85iDfUvr3HJyLM2zcq5BXSiDvUWfw6cSE1FfNBo8Ap29)"] }
       ],
-      "remainingAccounts": "Accounts forwarded to SNS program CPI",
+      "remainingAccounts": "Accounts forwarded to SNS program CPI (no token programs or token-program-owned accounts)",
       "args": [
-        { "name": "snsData", "type": "bytes", "docs": ["Raw instruction data for the SNS program"] }
+        { "name": "snsData", "type": "bytes", "docs": ["Raw instruction data for the SNS program; non-empty, first byte must be an allowed instruction tag"] }
       ]
     }
   ],
