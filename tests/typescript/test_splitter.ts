@@ -385,6 +385,40 @@ async function main() {
     }
   );
 
+  // Regression: a locked recipient cannot be dropped from the distribution
+  await test(
+    "SetDistribution rejects omitting locked recipient",
+    async () => {
+      const ix = new TransactionInstruction({
+        programId: PROGRAM_ID,
+        keys: [
+          { pubkey: splitterPDA, isSigner: false, isWritable: true },
+          {
+            pubkey: payer.publicKey,
+            isSigner: true,
+            isWritable: false,
+          },
+        ],
+        data: encodeSetDistribution([
+          // recipient1 (locked at 5000) is omitted entirely
+          { address: recipient2.publicKey, share: 6000 },
+          { address: recipient3.publicKey, share: 4000 },
+        ]),
+      });
+      const tx = new Transaction().add(ix);
+      try {
+        await sendAndConfirmTransaction(connection, tx, [payer]);
+        throw new Error("Should have failed");
+      } catch (e: any) {
+        if (e.message === "Should have failed") throw e;
+        const detail = `${e.message} ${JSON.stringify(e.logs ?? [])}`;
+        // LockedShareViolation
+        if (!detail.includes("custom program error: 0x8"))
+          throw new Error(`Unexpected error: ${detail}`);
+      }
+    }
+  );
+
   // Test 6: Can increase locked recipient
   await test("SetDistribution allows increasing locked recipient", async () => {
     const ix = new TransactionInstruction({
@@ -593,6 +627,48 @@ async function main() {
       payer,
       mintAmount
     );
+
+    // Regression: a cranker cannot redirect the distribution to token
+    // accounts that do not belong to the configured recipients
+    const attacker = Keypair.generate();
+    const attackerATA = await getOrCreateAssociatedTokenAccount(
+      connection,
+      payer,
+      mint,
+      attacker.publicKey
+    );
+    const theftIx = new TransactionInstruction({
+      programId: PROGRAM_ID,
+      keys: [
+        { pubkey: tokenSplitterPDA, isSigner: false, isWritable: false },
+        { pubkey: mint, isSigner: false, isWritable: false },
+        { pubkey: splitterATA.address, isSigner: false, isWritable: true },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: attackerATA.address, isSigner: false, isWritable: true },
+        { pubkey: attackerATA.address, isSigner: false, isWritable: true },
+        { pubkey: attackerATA.address, isSigner: false, isWritable: true },
+      ],
+      data: encodeDistributeToken(),
+    });
+    try {
+      await sendAndConfirmTransaction(
+        connection,
+        new Transaction().add(theftIx),
+        [payer]
+      );
+      throw new Error("Theft should have failed");
+    } catch (e: any) {
+      if (e.message === "Theft should have failed") throw e;
+      const detail = `${e.message} ${JSON.stringify(e.logs ?? [])}`;
+      // RecipientAddressMismatch
+      if (!detail.includes("custom program error: 0xc"))
+        throw new Error(`Unexpected error: ${detail}`);
+    }
+    const attackerBalance = (
+      await getAccount(connection, attackerATA.address)
+    ).amount;
+    if (attackerBalance !== BigInt(0))
+      throw new Error(`Attacker received ${attackerBalance} tokens`);
 
     // Distribute tokens
     const tokenDistIx = new TransactionInstruction({
